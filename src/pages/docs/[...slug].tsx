@@ -1,129 +1,38 @@
-import { useEffect, useState } from 'react';
-
-import styles from './docs.module.scss';
-import Header from '../../components/layout/Header';
-import clsx from 'clsx';
 import { GetServerSidePropsContext } from "next";
-import DocumentationSideBar from "@/components/docs/DocumentationSideBar";
-import Metadata from "@/components/Metadata";
-import { Bars3Icon } from "@heroicons/react/24/solid";
-import DocumentationFooter from "@/components/docs/DocumentationFooter";
-import { DocumentationContextProvider, DocumentationData } from "@/context/DocumentationContext";
-import { useRouter } from "next/router";
-import { trimStringArray } from "@/lib/string";
-import DocumentationNavigationButtons from "@/components/docs/DocumentationNavigationButtons";
-import Select from "@/components/Select";
 import Project, { hasDocumentation } from "@/lib/project/project";
 import Version from "@/lib/project/version";
-import { findFileNodeInTree } from "@/lib/project/documentation/documentation_node";
 import projectMapCache from "@/lib/server/project_map_cache";
+import DocumentationScreen from "@/components/docs/DocumentationScreen";
+import Header from "@/components/layout/Header";
+import Head from "next/head";
 
 interface PageProps {
   project: Project;
-  version: Version;
+  version: Version | null;
   path: string[];
 }
 
-export default function Docs({ project, ...props }: PageProps) {
-
-  const router = useRouter();
-
-  const [ documentation, setDocumentation ] = useState<DocumentationData>({
-    sideBarVisible: false,
-    project,
-    version: props.version,
-    file: findFileNodeInTree(props.version.documentation!.content, props.path)!
-  });
-
-  useEffect(() => {
-    const path = router.asPath.split('/');
-    trimStringArray(path);
-
-    path.shift(); // remove 'docs' thing
-    path.shift(); // remove the project name
-
-    let version = project.latestVersion!;
-    let versionName =  path.shift(); // remove the version
-    if (!versionName || project.versions[versionName] === undefined) {
-      if (versionName) {
-        path.unshift(versionName);
-      }
-    }
-
-    let file = findFileNodeInTree(version.documentation!.content, path);
-
-    if (file && file.path === documentation.file.path) {
-      // already the same, no need to change
-      return;
-    }
-
-    setDocumentation({
-      ...documentation,
-      version,
-      file: file!
-    });
-  }, [ router ]);
-
-  return (
-    <DocumentationContextProvider state={[ documentation, setDocumentation ]}>
-      <Metadata options={{
-        title: `${project.name} Documentation`,
-        url: `https://unnamed.team/docs/${project.name}`,
-        description: project.description
-      }} />
-      <div className="flex flex-col h-full w-full">
-
-        {/* Fixed header */}
-        <Header className="fixed bg-wine-900/80 backdrop-blur-sm z-50">
-          <div className="flex flex-1 items-center justify-start px-6">
-            <Select
-              defaultKey={documentation.version.version}
-              options={Object.entries(project.versions).map(([ versionName, version ]) => ({ key: versionName, value: version }))}
-              onSelect={version => {
-                setDocumentation({
-                  ...documentation,
-                  file: findFileNodeInTree(version.documentation!.content, [])!,
-                  version
-                });
-                router.push(
-                  `/docs/${project.name}/${version.version}`,
-                  undefined,
-                  { shallow: true, scroll: true }
-                );
-              }}
-            />
-          </div>
-          <div className="flex md:hidden">
-            <button onClick={() => setDocumentation(doc => ({ ...doc, sideBarVisible: !doc.sideBarVisible }))}>
-              <Bars3Icon className="w-6 h-6 text-white/80" />
-            </button>
-          </div>
-        </Header>
-
-        {/* Fixed left sidebar */}
-        <DocumentationSideBar />
-
-        <div className="w-screen h-full">
-          <div className="w-screen lg:max-w-5xl lg:mx-auto flex flex-row justify-end mt-16">
-            {/* Content */}
-            <main className="w-screen lg:max-w-[768px]">
-              <div className="flex flex-col mx-auto">
-
-                {/* The actual content */}
-                <div
-                  className={clsx('text-white/60 font-light w-screen px-8 lg:w-full z-10', styles.body)}
-                  dangerouslySetInnerHTML={{ __html: documentation.file.content }}
-                />
-
-                <DocumentationNavigationButtons />
-                <DocumentationFooter />
-              </div>
-            </main>
+export default function Docs({ project, version, path }: PageProps) {
+  if (!version) {
+    return (
+      <>
+        <Head>
+          <title>{`No documentation for ${project.name}`}</title>
+        </Head>
+        <Header />
+        <div className="flex flex-col items-center gap-4 my-10 p-8">
+          <h1 className="text-white/80 font-medium text-6xl text-center">
+            We are sorry!
+          </h1>
+          <div className="text-white/70 font-light text-lg text-center">
+            <p>{project.name} does not have any documentation yet.</p>
           </div>
         </div>
-      </div>
-    </DocumentationContextProvider>
-  );
+      </>
+    );
+  } else {
+    return <DocumentationScreen project={project} version={version} path={path} />;
+  }
 }
 
 export async function getServerSideProps({ req, res, params }: GetServerSidePropsContext) {
@@ -147,9 +56,12 @@ export async function getServerSideProps({ req, res, params }: GetServerSideProp
   const projects = await projectMapCache.get();
   const project = projects[projectName];
 
-  if (!hasDocumentation(project)) {
-    // project is not documented
+  if (!project) {
+    // project does not exist
     return { notFound: true };
+  } else if (!hasDocumentation(project)) {
+    // project is not documented
+    return { props: { project, version: null, path: [] } };
   }
 
   // check tag
