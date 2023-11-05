@@ -1,3 +1,31 @@
+import * as strings from "@/lib/string";
+
+export default async function replaceNexusVersions(input: string): Promise<string> {
+  // format is like:
+  //   %%REPLACE_what{the_argument}%%
+  // for example:
+  //   %%REPLACE_latestRelease{team.unnamed:creative-central-api}%%
+  const latestVersionRegex = /%%REPLACE_([^%]+)\{([^%]+)}%%/g;
+
+  return await strings.replaceAsync(input, latestVersionRegex, async (match, whatToReplace, argument) => {
+    if (whatToReplace === 'latestRelease' || whatToReplace === 'latestVersion' || whatToReplace === 'latestReleaseOrSnapshot') {
+      const [ groupId, artifactId ] = argument.split(':');
+      const versioning = await fetchVersioning(groupId, artifactId);
+
+      if (whatToReplace === 'latestRelease') {
+        return versioning.release ?? 'unknown';
+      } else if (whatToReplace === 'latestVersion') {
+        return versioning.latest;
+      } else {
+        return versioning.release ?? versioning.latest;
+      }
+    } else {
+      return match;
+    }
+  });
+}
+
+
 const BASE_URL = process.env.nexusUrl!;
 const DEFAULT_REPOSITORY = process.env.mavenDefaultRepository!;
 

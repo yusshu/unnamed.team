@@ -49,7 +49,7 @@ export async function replaceAsync(
  *
  * @param array The array to trim (mutates)
  */
-export function trimArray(array: string[]): void {
+export function trimStringArray(array: string[]): void {
   while (array.length > 0 && array[0].length === 0) {
     array.shift();
   }

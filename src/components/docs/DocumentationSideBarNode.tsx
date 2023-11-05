@@ -1,11 +1,11 @@
 import { useRouter } from "next/router";
 import clsx from "clsx";
-import { DocFile, DocTree, openDocFile } from "@/lib/docs/tree";
 import { useDocumentationContext } from "@/context/DocumentationContext";
 import { arrayEqual } from "@/lib/equality";
+import { DirectoryNodeContent, FileNode, openFileNode } from "@/lib/project/documentation/documentation_node";
 
 interface NodeElementProps {
-  tree: DocTree;
+  tree: DirectoryNodeContent;
   currentRoute: string[];
 }
 
@@ -21,9 +21,9 @@ export default function DocumentationSideBarNode({ tree, currentRoute }: NodeEle
   const [ documentation, setDocumentation ] = useDocumentationContext();
 
   const router = useRouter();
-  const indent = tree !== documentation.project.docs[documentation.tag];
+  const indent = tree !== documentation.version.documentation?.content;
 
-  const fileChildren = Object.entries(tree).filter(([ _, node ]) => node.type === 'file') as [ string, DocFile ][];
+  const fileChildren = Object.entries(tree).filter(([ _, node ]) => node.type === 'file') as [ string, FileNode ][];
   const dirChildren = Object.entries(tree).filter(([ _, node ]) => node.type === 'dir');
 
   return (
@@ -41,7 +41,7 @@ export default function DocumentationSideBarNode({ tree, currentRoute }: NodeEle
                 sideBarVisible: false,
                 file: node
               });
-              openDocFile(router, documentation.project, documentation.tag, node).catch(console.error);
+              openFileNode(router, documentation.project, documentation.version, node).catch(console.error);
             }}>
             <span
               className={clsx(
@@ -49,7 +49,7 @@ export default function DocumentationSideBarNode({ tree, currentRoute }: NodeEle
                 arrayEqual(node.path, documentation.file.path) ? 'font-normal text-pink-200' : 'font-light text-white/60',
               )}>
               <span className={clsx(arrayEqual(node.path, documentation.file.path) ? 'w-1.5 h-1.5 rounded-full bg-pink-200' : 'hidden')}></span>
-              <span>{node.name}</span>
+              <span>{node.displayName}</span>
             </span>
           </li>
         );
@@ -64,10 +64,10 @@ export default function DocumentationSideBarNode({ tree, currentRoute }: NodeEle
             indent && 'pl-4',
           )}>
 
-          <span className="text-base font-normal text-white/80">{node.name}</span>
+          <span className="text-base font-normal text-white/80">{node.displayName}</span>
 
           <DocumentationSideBarNode
-            tree={node.content as DocTree}
+            tree={node.content as DirectoryNodeContent}
             currentRoute={[ ...currentRoute, key ]}
           />
         </li>

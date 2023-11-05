@@ -1,14 +1,15 @@
 import styles from "./index.module.scss";
 import Metadata from "@/components/Metadata";
-import { cache, DocProjects } from "@/lib/docs";
-import { DocProject } from "@/lib/docs/tree";
 import Link from "next/link";
 import { GitHubIcon } from "@/components/icons";
 import LandingHero from "@/components/landing/LandingHero";
 import clsx from "clsx";
 import Footer from "@/components/layout/Footer";
+import projectListCache from "@/lib/server/project_map_cache";
+import Project, { ProjectMap } from "@/lib/project/project";
+import { GetServerSidePropsContext } from "next";
 
-function ProjectCard({ project }: { project: DocProject }) {
+function ProjectCard({ project }: { project: Project }) {
   return (
     <div
       className="flex flex-col py-2 md:py-4 px-4 md:px-8 gap-4 justify-between rounded-2xl border bg-white/[0.15] border-white/[.20] min-w-[400px] h-[200px]">
@@ -17,7 +18,7 @@ function ProjectCard({ project }: { project: DocProject }) {
         <p className="font-light text-white/70">{project.description}</p>
       </div>
       <div className="flex flex-row gap-3">
-        <Link href={`https://github.com/${project.fullName}`}>
+        <Link href={`https://github.com/unnamed/${project.name}`}>
           <span className="font-normal text-sm text-white/80 hover:text-white cursor-pointer flex flex-row gap-1.5 items-center">
             <GitHubIcon />
           </span>
@@ -32,7 +33,7 @@ function ProjectCard({ project }: { project: DocProject }) {
   );
 }
 
-function ProjectCardRow({ projects, backbuf }: { projects: DocProjects, backbuf: boolean }) {
+function ProjectCardRow({ projects, backbuf }: { projects: ProjectMap, backbuf: boolean }) {
   return (
     <div className={clsx("relative flex flex-row gap-4 px-2", backbuf ? styles.projectCardRowBack : styles.projectCardRow)}>
       {Object.entries(projects)
@@ -44,7 +45,7 @@ function ProjectCardRow({ projects, backbuf }: { projects: DocProjects, backbuf:
   );
 }
 
-export default function HomePage({ projects }: { projects: DocProjects }) {
+export default function HomePage({ projects }: { projects: ProjectMap }) {
   return (
     <>
       <Metadata options={{
@@ -67,21 +68,23 @@ export default function HomePage({ projects }: { projects: DocProjects }) {
   );
 };
 
-export async function getStaticProps() {
-  const projects: DocProjects = await cache.get();
-  const partialProjects: DocProjects = {};
+export async function getServerSideProps({ req, res }: GetServerSidePropsContext) {
+  res.setHeader(
+    'Cache-Control',
+    'public, s-maxage=10, stale-while-revalidate=59',
+  );
 
-  // remove "docs" data from the projects, it is not required
+  const projects = await projectListCache.get();
+  const partialProjects: typeof projects = {};
+
+  // remove versions data from the projects, it is not required
   // for this page, and it may contain a lot of data, making the
   // page load slower!
   for (const [ key, project ] of Object.entries(projects)) {
     partialProjects[key] = {
-      name: project.name,
-      description: project.description,
-      stars: project.stars,
-      fullName: project.fullName,
-      docs: {},
-      defaultBranch: project.defaultBranch
+      ...project,
+      latestVersion: null,
+      versions: {},
     };
   }
   return { props: { projects: partialProjects } };

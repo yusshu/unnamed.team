@@ -36,7 +36,7 @@ export default function DocumentationSideBar() {
       )}>
       <div className="p-2.5 pb-12 h-max">
         <DocumentationSideBarNode
-          tree={documentation.project.docs[documentation.tag]}
+          tree={documentation.version.documentation!.content}
           currentRoute={[ 'docs', documentation.project.name ]}
         />
       </div>

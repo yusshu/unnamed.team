@@ -1,9 +1,9 @@
 import { UnnamedIcon } from "@/components/icons";
 import Link from "next/link";
 import YearRange from "@/components/text/YearRange";
-import { DocProjects } from "@/lib/docs";
+import { ProjectMap } from "@/lib/project/project";
 
-export default function Footer({ projects }: { projects: DocProjects }) {
+export default function Footer({ projects }: { projects: ProjectMap }) {
   const docEntries = Object.entries(projects)
     .sort(([ , a ], [ , b ]) => b.stars - a.stars)
     .map(([ name, ]) => ([ name, `/docs/${name}` ]));

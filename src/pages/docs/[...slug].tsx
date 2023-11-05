@@ -3,22 +3,24 @@ import { useEffect, useState } from 'react';
 import styles from './docs.module.scss';
 import Header from '../../components/layout/Header';
 import clsx from 'clsx';
-import { GetStaticProps } from "next";
-import { DocDir, DocNode, DocProject, findInTree } from "@/lib/docs/tree";
+import { GetServerSidePropsContext } from "next";
 import DocumentationSideBar from "@/components/docs/DocumentationSideBar";
 import Metadata from "@/components/Metadata";
-import { cache, DocProjects } from "@/lib/docs";
 import { Bars3Icon } from "@heroicons/react/24/solid";
 import DocumentationFooter from "@/components/docs/DocumentationFooter";
 import { DocumentationContextProvider, DocumentationData } from "@/context/DocumentationContext";
 import { useRouter } from "next/router";
-import { trimArray } from "@/lib/string";
+import { trimStringArray } from "@/lib/string";
 import DocumentationNavigationButtons from "@/components/docs/DocumentationNavigationButtons";
 import Select from "@/components/Select";
+import Project, { hasDocumentation } from "@/lib/project/project";
+import Version from "@/lib/project/version";
+import { findFileNodeInTree } from "@/lib/project/documentation/documentation_node";
+import projectMapCache from "@/lib/server/project_map_cache";
 
 interface PageProps {
-  project: DocProject;
-  tag: string | 'latest';
+  project: Project;
+  version: Version;
   path: string[];
 }
 
@@ -29,27 +31,26 @@ export default function Docs({ project, ...props }: PageProps) {
   const [ documentation, setDocumentation ] = useState<DocumentationData>({
     sideBarVisible: false,
     project,
-    tag: props.tag,
-    file: findInTree(project.docs[props.tag], props.path)!
+    version: props.version,
+    file: findFileNodeInTree(props.version.documentation!.content, props.path)!
   });
 
   useEffect(() => {
     const path = router.asPath.split('/');
-    trimArray(path);
+    trimStringArray(path);
 
     path.shift(); // remove 'docs' thing
     path.shift(); // remove the project name
 
-    let tag =  path.shift(); // remove the tag
-    if (!tag || project.docs[tag] === undefined) {
-      if (tag) {
-        path.unshift(tag);
+    let version = project.latestVersion!;
+    let versionName =  path.shift(); // remove the version
+    if (!versionName || project.versions[versionName] === undefined) {
+      if (versionName) {
+        path.unshift(versionName);
       }
-      // not a valid tag
-      tag = 'latest';
     }
 
-    let file = findInTree(project.docs[tag], path);
+    let file = findFileNodeInTree(version.documentation!.content, path);
 
     if (file && file.path === documentation.file.path) {
       // already the same, no need to change
@@ -58,6 +59,7 @@ export default function Docs({ project, ...props }: PageProps) {
 
     setDocumentation({
       ...documentation,
+      version,
       file: file!
     });
   }, [ router ]);
@@ -75,16 +77,16 @@ export default function Docs({ project, ...props }: PageProps) {
         <Header className="fixed bg-wine-900/80 backdrop-blur-sm z-50">
           <div className="flex flex-1 items-center justify-start px-6">
             <Select
-              defaultKey={documentation.tag}
-              options={Object.keys(project.docs).map(tag => ({ key: tag, value: tag }))}
-              onSelect={tag => {
+              defaultKey={documentation.version.version}
+              options={Object.entries(project.versions).map(([ versionName, version ]) => ({ key: versionName, value: version }))}
+              onSelect={version => {
                 setDocumentation({
                   ...documentation,
-                  file: findInTree(project.docs[tag], [])!,
-                  tag
+                  file: findFileNodeInTree(version.documentation!.content, [])!,
+                  version
                 });
                 router.push(
-                  `/docs/${project.name}/${tag}`,
+                  `/docs/${project.name}/${version.version}`,
                   undefined,
                   { shallow: true, scroll: true }
                 );
@@ -124,74 +126,51 @@ export default function Docs({ project, ...props }: PageProps) {
   );
 }
 
-export async function getStaticPaths() {
-  const repos: DocProjects = await cache.get();
-  const paths: any[] = [];
-
-  function addPath(path: string[]) {
-    paths.push({
-      params: {
-        slug: path,
-      },
-    });
+export async function getServerSideProps({ req, res, params }: GetServerSidePropsContext) {
+  if (!params || !params['slug']) {
+    return { notFound: true };
   }
 
-  async function it(key: string, tree: DocNode, path: string[]) {
-    addPath([ ...path, key ]);
-    if (tree.type === 'dir') {
-      for (const [ childKey, childNode ] of Object.entries((tree as DocDir).content)) {
-        await it(childKey, childNode, [ ...path, key ]);
-      }
-    }
+  res.setHeader(
+    'Cache-Control',
+    'public, s-maxage=10, stale-while-revalidate=59',
+  );
+
+  const slug = params!['slug'] as string[];
+  if (slug.length < 1) {
+    // we need the project name at least
+    return { notFound: true };
   }
 
-  for (const repo of Object.values(repos)) {
+  const projectName = slug.shift()!;
 
-    // root path
-    addPath([ repo.name ]);
-
-    // section paths
-    for (const [ key, tree ] of Object.entries(repo.docs['latest'])) {
-      await it(key, tree, [ repo.name ]);
-    }
-    for (const tag of Object.keys(repo.docs)) {
-      addPath([ repo.name, tag ]);
-      for (const [ key, tree ] of Object.entries(repo.docs[tag])) {
-        await it(key, tree, [ repo.name, tag ]);
-      }
-    }
-  }
-
-  return {
-    paths,
-    fallback: false,
-  };
-}
-
-export const getStaticProps: GetStaticProps = async ({ params }) => {
-  const projects = await cache.get();
-  const [ projectName, ...path ] = params!['slug'] as string[];
+  const projects = await projectMapCache.get();
   const project = projects[projectName];
 
+  if (!hasDocumentation(project)) {
+    // project is not documented
+    return { notFound: true };
+  }
+
   // check tag
-  let tag;
-  if (path.length === 0) {
-    tag = 'latest';
+  let version;
+  if (slug.length === 0) {
+    version = project.latestVersion;
   } else {
-    tag = path[0];
-    if (!project.docs[tag]) {
+    const versionName = slug[0];
+    if (!project.versions[versionName]) {
       // not a valid tag
-      tag = 'latest';
+      version = project.latestVersion;
     } else {
-      path.shift();
+      slug.shift();
     }
   }
 
   return {
     props: {
       project,
-      tag,
-      path,
+      version,
+      path: slug,
     },
   };
-};
+}
