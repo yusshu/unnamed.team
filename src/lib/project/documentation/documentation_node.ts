@@ -65,6 +65,11 @@ export interface FileNode extends Node<string> {
    * format, or null if date is unknown.
    */
   readonly lastUpdateDate: string | null;
+
+  /**
+   * The HTML URL for this file.
+   */
+  readonly htmlUrl: string;
 }
 
 export function findFileNodeInTree(root: DirectoryNodeContent, path: string[]): FileNode | null {

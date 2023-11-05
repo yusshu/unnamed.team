@@ -88,7 +88,8 @@ export async function fetchDocumentation(repository: GitHubRepository, version: 
             displayName: getPageTitle(key, fileContent),
             path: [ ...directoryPath, key ],
             content: fileContent,
-            lastUpdateDate
+            lastUpdateDate,
+            htmlUrl: content.htmlUrl
           };
 
           entries.push([ content.name, node ]);
