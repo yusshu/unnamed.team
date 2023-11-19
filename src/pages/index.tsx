@@ -7,7 +7,6 @@ import clsx from "clsx";
 import Footer from "@/components/layout/Footer";
 import projectListCache from "@/lib/server/project_map_cache";
 import Project, { ProjectMap } from "@/lib/project/project";
-import { GetServerSidePropsContext } from "next";
 
 function ProjectCard({ project }: { project: Project }) {
   return (
@@ -68,30 +67,19 @@ export default function HomePage({ projects }: { projects: ProjectMap }) {
   );
 };
 
-export async function getServerSideProps({ req, res }: GetServerSidePropsContext) {
-  try {
-    res.setHeader(
-      'Cache-Control',
-      'public, s-maxage=10, stale-while-revalidate=59',
-    );
+export async function getStaticProps() {
+  const projects = await projectListCache.get();
+  const partialProjects: typeof projects = {};
 
-    const projects = await projectListCache.get();
-    const partialProjects: typeof projects = {};
-
-    // remove versions data from the projects, it is not required
-    // for this page, and it may contain a lot of data, making the
-    // page load slower!
-    for (const [ key, project ] of Object.entries(projects)) {
-      partialProjects[key] = {
-        ...project,
-        latestVersion: null,
-        versions: {},
-      };
-    }
-    return { props: { projects: partialProjects } };
-  } catch (e) {
-    console.error('Failed to load projects');
-    console.error(e);
-    throw e;
+  // remove versions data from the projects, it is not required
+  // for this page, and it may contain a lot of data, making the
+  // page load slower!
+  for (const [ key, project ] of Object.entries(projects)) {
+    partialProjects[key] = {
+      ...project,
+      latestVersion: null,
+      versions: {},
+    };
   }
+  return { props: { projects: partialProjects } };
 }
