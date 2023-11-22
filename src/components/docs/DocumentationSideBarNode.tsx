@@ -21,20 +21,20 @@ export default function DocumentationSideBarNode({ tree, currentRoute }: NodeEle
   const [ documentation, setDocumentation ] = useDocumentationContext();
 
   const router = useRouter();
-  const indent = tree !== documentation.version.documentation?.content;
+  const indent = () => tree !== documentation.version.documentation?.content;
 
   const fileChildren = Object.entries(tree).filter(([ _, node ]) => node.type === 'file') as [ string, FileNode ][];
   const dirChildren = Object.entries(tree).filter(([ _, node ]) => node.type === 'dir');
 
   return (
-    <ul className={clsx('flex flex-col gap-2', indent && 'gap-4')}>
+    <ul className={clsx('flex flex-col gap-2', indent() && 'gap-4')}>
 
       {/* File entries */}
       {fileChildren.map(([ key, node ]) => {
         return (
           <li
             key={key}
-            className={clsx('flex flex-col gap-1', indent && 'pl-4')}
+            className={clsx('flex flex-col gap-1', indent() && 'pl-4')}
             onClick={() => {
               setDocumentation({
                 ...documentation,
@@ -61,7 +61,7 @@ export default function DocumentationSideBarNode({ tree, currentRoute }: NodeEle
           key={key}
           className={clsx(
             'flex flex-col gap-1 mt-4',
-            indent && 'pl-4',
+            indent() && 'pl-4',
           )}>
 
           <span className="text-base font-normal text-white/80">{node.displayName}</span>
