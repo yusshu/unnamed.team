@@ -32,7 +32,7 @@ export default function EditorPage() {
       });
 
       downloadTemporaryFile(id)
-        .then(readEmojis)
+        .then(buffer => (buffer ? readEmojis(buffer) : []))
         .then(emojis => {
           const glyphMap = new GlyphMap();
           for (const emoji of emojis) {

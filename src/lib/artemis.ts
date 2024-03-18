@@ -27,8 +27,22 @@ export function uploadTemporaryFile(blob: Blob): Promise<Response> {
  * @param {string} id The temporary file ID
  * @returns {Promise<ArrayBuffer>} The file data
  */
-export function downloadTemporaryFile(id: string): Promise<ArrayBuffer> {
+export function downloadTemporaryFile(id: string): Promise<ArrayBuffer | null> {
   // download as array buffer
   const url = BASE_URL + 'tempfiles/get/' + id;
-  return fetch(url).then(response => response.arrayBuffer());
+  return fetch(url)
+    .then(response => response.json())
+    .then(data => {
+      if (!data['present']) {
+        return null;
+      } else {
+        const base64 = data['file'];
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes.buffer;
+      }
+    });
 }
