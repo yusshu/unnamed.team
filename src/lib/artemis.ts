@@ -19,3 +19,16 @@ export function uploadTemporaryFile(blob: Blob): Promise<Response> {
     { method: 'POST', body: formData },
   );
 }
+
+/**
+ * Downloads a temporary file from the Artemis backend
+ * using its ID
+ *
+ * @param {string} id The temporary file ID
+ * @returns {Promise<ArrayBuffer>} The file data
+ */
+export function downloadTemporaryFile(id: string): Promise<ArrayBuffer> {
+  // download as array buffer
+  const url = BASE_URL + 'tempfiles/get/' + id;
+  return fetch(url).then(response => response.arrayBuffer());
+}

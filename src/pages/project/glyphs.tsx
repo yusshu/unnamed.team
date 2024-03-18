@@ -3,7 +3,7 @@
  * help with the creation of µŋglyphs (formerly µŋemojis)
  * glyphs
  */
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ToastContainer } from '@/components/toast';
 import Metadata from "@/components/Metadata";
 import GlyphEditorHeader from "@/components/glyphs/GlyphEditorHeader";
@@ -12,12 +12,39 @@ import GlyphCard from "@/components/glyphs/GlyphCard";
 import GlyphMap from "@/lib/glyphs/glyph.map";
 import { GlyphEditorContextProvider, GlyphEditorData } from "@/context/GlyphEditorContext";
 import LoadingOverlay from '@/components/overlay/LoadingOverlay';
+import { useSearchParams } from "next/navigation";
+import { downloadTemporaryFile } from "@/lib/artemis";
+import { readEmojis } from "@/lib/glyphs/mcemoji";
 
 export default function EditorPage() {
+  const searchParams = useSearchParams();
   const [ data, setData ] = useState<GlyphEditorData>({
     glyphMap: new GlyphMap(),
     loading: false
   });
+
+  useEffect(() => {
+    const id = searchParams.get('id');
+    if (id) {
+      setData({
+        ...data,
+        loading: true
+      });
+
+      downloadTemporaryFile(id)
+        .then(readEmojis)
+        .then(emojis => {
+          const glyphMap = new GlyphMap();
+          for (const emoji of emojis) {
+            glyphMap.add(emoji);
+          }
+          setData({
+            glyphMap,
+            loading: false
+          });
+        });
+    }
+  }, [ searchParams ]);
 
   return (
     <>
